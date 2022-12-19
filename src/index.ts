@@ -6,6 +6,13 @@
 //
 
 /**
+ * Non-nullable plain object type
+ *
+ * @template V The type of all the values
+ */
+export type Obj<V = unknown> = Record<string, V>;
+
+/**
  * A signature that allow type to be uniquely identified
  *
  * @template K The key type to identify the signature
@@ -13,34 +20,18 @@
 export type Signature<K> = { readonly __type: K };
 
 /**
- * Merge two types with the later being more important,
- * i.e. second type override all its intersection with the first
- *
- * @template First The first type (must be an object)
- * @template Second The second type (must be an object)
- * @template Intersection The combined type with no priority (must be an intersection of A and B)
- */
-export type Merge<
-  First extends Record<string, unknown>,
-  Second extends Record<string, unknown>,
-  Intersection extends First & Second = First & Second
-> = {
-  [K in keyof Intersection]: K extends keyof Second
-    ? Second[K]
-    : Intersection[K];
-};
-
-/**
  * Union types from a definition of a key and payload object that can be uniquely identified with a signature
  *
  * @template Def The key and payload definition object
  */
-export type Union<Def extends Record<string, Record<string, unknown>>> = {
-  [Key in keyof Def]: Merge<Def[Key], Signature<Key>>;
+export type Union<Def extends Obj<Obj>> = {
+  [Key in keyof Def]: Def[Key] & Signature<Key>;
 }[keyof Def];
 
 /**
  * Narrow down a union type with a unique signature key
+ *
+ * **Limitation**: Narrow functionality is limited when generic is nested within the Unity and Key
  *
  * @template Unity The union type that contains a signature
  * @template Key The signature to narrow down the type
@@ -49,6 +40,42 @@ export type Narrow<
   Unity extends Signature<string>,
   Key extends Unity["__type"]
 > = Unity extends Signature<Key> ? Unity : never;
+
+/**
+ * Narrow down a union type with a unique signature key, omitting the signature
+ *
+ * **Limitation**: Narrow functionality is limited when generic is nested within the Unity and Key
+ *
+ * @template Unity The union type that contains a signature
+ * @template Key The signature to narrow down the type
+ */
+export type NoSignatureNarrow<
+  Unity extends Signature<string>,
+  Key extends Unity["__type"]
+> = Omit<Narrow<Unity, Key>, "__type">;
+
+/**
+ * Case for UnionCases
+ *
+ * @template Key A key for the case
+ * @template Payload An optional payload
+ */
+export type Case<Key extends string, Payload extends Obj = {}> = [Key, Payload];
+
+/**
+ * Union types from a list of Case that can be uniquely identified with a signature
+ *
+ * @template Cases A list of Case for the union
+ */
+export type UnionCases<
+  Cases extends Array<Case<string, Obj>>,
+  Def extends Obj<Obj> = {}
+> = Cases extends [Case<infer K, infer P>, ...infer Next]
+  ? UnionCases<
+      Next extends Array<Case<string, Obj>> ? Next : [],
+      Def & { [Key in K]: P }
+    >
+  : Union<Def>;
 
 /**
  * Object containing key and function pairs for all possible types in a union based on their signature
